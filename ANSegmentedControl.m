@@ -59,11 +59,14 @@
 @implementation ANSegmentedControl
 @synthesize fastAnimationDuration=_fastAnimationDuration;
 @synthesize slowAnimationDuration=_slowAnimationDuration;
-
+@synthesize backgroundImage = _backgroundImage;
+@synthesize knobImage = _knobImage;
+@synthesize labelFont = _labelFont;
+@synthesize textColor = _textColor;
 
 + (Class)cellClass
 {
-	return [ANSegmentedCell class];
+  return [ANSegmentedCell class];
 }
 - (id) initWithFrame:(NSRect)frameRect
 {
@@ -76,20 +79,27 @@
 }
 - (id)initWithCoder:(NSCoder *)aDecoder
 {
-	if (![aDecoder isKindOfClass:[NSKeyedUnarchiver class]])
-		return [super initWithCoder:aDecoder];
+  if (![aDecoder isKindOfClass:[NSKeyedUnarchiver class]])
+    return [super initWithCoder:aDecoder];
         
-	NSKeyedUnarchiver *unarchiver = (NSKeyedUnarchiver *)aDecoder;
-	Class oldClass = [[self superclass] cellClass];
-	Class newClass = [[self class] cellClass];
-	
-	[unarchiver setClass:newClass forClassName:NSStringFromClass(oldClass)];
-	self = [super initWithCoder:aDecoder];
-	[unarchiver setClass:oldClass forClassName:NSStringFromClass(oldClass)];
+  NSKeyedUnarchiver *unarchiver = (NSKeyedUnarchiver *)aDecoder;
+  Class oldClass = [[self superclass] cellClass];
+  Class newClass = [[self class] cellClass];
+  
+  [unarchiver setClass:newClass forClassName:NSStringFromClass(oldClass)];
+  self = [super initWithCoder:aDecoder];
+  [unarchiver setClass:oldClass forClassName:NSStringFromClass(oldClass)];
     
-    [self setDefaultDurations]; 
-	
-	return self;
+    [self setDefaultDurations];
+  
+  return self;
+}
+
+- (void)dealloc
+{
+    [self setLabelFont:nil];
+    
+    [super dealloc];
 }
 
 - (void)awakeFromNib
@@ -114,10 +124,21 @@
                                 respectFlipped:YES
                                          hints:nil];
 }
+
+- (void)drawCenteredLabel:(NSString *)label inFrame:(NSRect)frame attributes:(NSDictionary *)attributes
+{
+    NSSize labelSize = [label sizeWithAttributes:attributes];
+    CGRect rect = NSMakeRect(frame.origin.x + (frame.size.width - labelSize.width) * 0.50f,
+                             frame.origin.y + (frame.size.height - labelSize.height) * 0.50f, // Subtract a pixel to make it look centered
+                             labelSize.width,
+                             labelSize.height);
+    [label drawInRect:rect withAttributes:attributes];
+}
+
 - (void)drawRect:(NSRect)dirtyRect
 {    
-	NSRect rect = [self bounds];
-	rect.size.height -= 1;
+  NSRect rect = [self bounds];
+  rect.size.height -= 1;
     
     [self drawBackgroud:rect];
     [self drawKnob:rect];
@@ -125,113 +146,65 @@
 
 - (void)drawSegment:(NSInteger)segment inFrame:(NSRect)frame withView:(NSView *)controlView
 {
-    float imageFraction;
-    
-    if ([[self window] isKeyWindow]) {
-        imageFraction = .5;
-    } else {
-        imageFraction = .2;
-    }
-    
     NSImage *image = [self imageForSegment:segment];
-    [[NSGraphicsContext currentContext] setImageInterpolation: NSImageInterpolationHigh];
-    [self drawCenteredImage:image inFrame:frame imageFraction:imageFraction];
+    NSString *label = [self labelForSegment:segment];
+    
+    if (label != nil)
+    {
+        NSDictionary *attributes = @{ NSFontAttributeName : self.labelFont, NSForegroundColorAttributeName : [NSColor colorWithDeviceWhite:0.0f alpha:0.50f] };
+        [self drawCenteredLabel:label inFrame:frame attributes:attributes];
+    }
+    else
+    {
+        float imageFraction;
+        
+        if ([[self window] isKeyWindow]) {
+            imageFraction = .5;
+        } else {
+            imageFraction = .2;
+        }
+        
+        [[NSGraphicsContext currentContext] setImageInterpolation: NSImageInterpolationHigh];
+        
+        [self drawCenteredImage:image inFrame:frame imageFraction:imageFraction];
+    }
 }
 
 - (void)drawBackgroud:(NSRect)rect
 {
-	CGFloat radius = 3.5;
-    NSGradient *gradient;
-    NSColor *frameColor;
+  [_backgroundImage drawInRect:rect fromRect:rect operation:NSCompositeSourceOver fraction:1 respectFlipped:YES hints:nil];
 
-    NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:rect
-                                                         xRadius:radius 
-                                                         yRadius:radius];
-    
-    NSGraphicsContext *ctx = [NSGraphicsContext currentContext];   
-    
-    if ([[self window] isKeyWindow]) {
-        gradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedWhite:.75 alpha:1.0]
-                                                 endingColor:[NSColor colorWithCalibratedWhite:.6 alpha:1.0]];
-        
-        frameColor = [NSColor colorWithCalibratedWhite:.37 alpha:1.0] ;
-    } else {
-        gradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedWhite:.8 alpha:1.0]
-                                                 endingColor:[NSColor colorWithCalibratedWhite:.77 alpha:1.0]];
-        frameColor = [NSColor colorWithCalibratedWhite:.68 alpha:1.0] ;
+  for (int i = 0; i < [self segmentCount]; i++){
+    CGFloat width = rect.size.width / [self segmentCount];
+    CGFloat height = rect.size.height;
+    NSRect custom_rect=NSMakeRect(width*i, rect.origin.y, width, height);
+
+    NSString *label = [self labelForSegment:i];
+    if (label != nil){
+      NSDictionary *attributes = @{ NSFontAttributeName : self.labelFont, NSForegroundColorAttributeName : [_textColor colorWithAlphaComponent:0.6] };
+      [self drawCenteredLabel:label inFrame:custom_rect attributes:attributes];
     }
-    
-    // シャドウ
-    [ctx saveGraphicsState];
-    NSShadow *dropShadow = [[NSShadow alloc] init];
-    [dropShadow setShadowOffset:NSMakeSize(0, -1.0)];
-    [dropShadow setShadowBlurRadius:1.0];
-    [dropShadow setShadowColor:[NSColor colorWithCalibratedWhite:.863 alpha:.75]];
-	[dropShadow set];
-	[path fill];
-    [ctx restoreGraphicsState];
-    
-    // 塗り
-	[gradient drawInBezierPath:path angle:-90];
-    
-    // 枠線
-    [frameColor setStroke];
-	[path strokeInside];
-    
-    float segmentWidth = rect.size.width / [self segmentCount];
-    float segmentHeight = rect.size.height;
-    NSRect segmentRect = NSMakeRect(0, 0, segmentWidth, segmentHeight);
-    
-    for(int s = 0; s < [self segmentCount]; s ++) {
-        [self drawSegment:s
-                  inFrame:segmentRect 
-                 withView:self];
-        segmentRect.origin.x += segmentWidth;
-    }
-#if ! __has_feature(objc_arc)
-    [gradient release];
-    [dropShadow release];
-#endif
+  }
+
 }
 
 - (void)drawKnob:(NSRect)rect
 {
-	CGFloat radius = 3;
-    NSGradient *gradient;
-    float imageFraction;
-    NSColor *frameColor;
-    
-    if ([[self window] isKeyWindow]) {
-        gradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedWhite:.68 alpha:1.0]
-                                                 endingColor:[NSColor colorWithCalibratedWhite:.91 alpha:1.0]];   
-        imageFraction = 1.0;
-        frameColor = [NSColor colorWithCalibratedWhite:.37 alpha:1.0] ;
-    } else {
-        gradient = [[NSGradient alloc] initWithStartingColor:[NSColor colorWithCalibratedWhite:.76 alpha:1.0]
-                                                 endingColor:[NSColor colorWithCalibratedWhite:.90 alpha:1.0]];   
-        imageFraction = .25; 
-        frameColor = [NSColor colorWithCalibratedWhite:.68 alpha:1.0] ;
-    }
-    
-    CGFloat width = rect.size.width / [self segmentCount];
-    CGFloat height = rect.size.height;
-    NSRect knobRect=NSMakeRect(location.x, rect.origin.y, width, height);
-    NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:  knobRect
-                                                         xRadius:radius 
-                                                         yRadius:radius];
-    // 塗り
-	[gradient drawInBezierPath:path angle:-90];
-    // 枠線
-    [frameColor setStroke];
-	[path strokeInside];
-    
-    int newSegment = (int)round(location.x / width);
-    NSImage *image = [self imageForSegment:newSegment];
-    [self drawCenteredImage:image inFrame:knobRect imageFraction:imageFraction];
+  CGFloat width = rect.size.width / [self segmentCount];
+  CGFloat height = rect.size.height;
+  NSRect knobRect=NSMakeRect(location.x, rect.origin.y, width, height);
 
-#if ! __has_feature(objc_arc)
-    [gradient release];
-#endif
+  [_knobImage drawInRect:knobRect fromRect:knobRect operation:NSCompositeSourceOver fraction:1 respectFlipped:YES hints:nil];
+    
+  int newSegment = (int)round(location.x / width);
+  
+  NSString *label = [self labelForSegment:newSegment];
+  
+  if (label != nil)
+  {
+      NSDictionary *attributes = @{ NSFontAttributeName : self.labelFont, NSForegroundColorAttributeName : _textColor };
+      [self drawCenteredLabel:label inFrame:knobRect attributes:attributes];
+  }
 }
 
 - (void)animateTo:(int)x

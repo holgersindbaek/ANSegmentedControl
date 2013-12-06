@@ -7,6 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "NSImage+RHResizableImageAdditions.h"
 
 
 @interface ANSegmentedControl : NSSegmentedControl <NSAnimationDelegate> {
@@ -17,5 +18,9 @@
 -(void)setSelectedSegment:(NSInteger)newSegment animate:(bool)animate;
 @property CGFloat fastAnimationDuration;
 @property CGFloat slowAnimationDuration;
+@property (nonatomic, retain) NSFont *labelFont;
+@property (nonatomic) NSColor *textColor;
+@property (nonatomic, strong) RHResizableImage *backgroundImage;
+@property (nonatomic, strong) RHResizableImage *knobImage;
 
 @end
